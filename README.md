@@ -4,11 +4,22 @@ DICOM anonymiser that can also function as a DICOM renamer
 
 Usage:
 So far this is a console app, GUI version to come soon
+
 `python dicom_anon_console.py -i path/to/input_dicom -o (optional) path/to/dicom_anon`
 
 Parameters:
 - -i/-input: relative path to directory of DICOM files (.dcm only, DICOMDIR not supported yet)
 - -o/-output: relative path to output directory
+
+tags.ini:
+- This is the config file of all the optional tags to be removed
+- Will be created automatically if not found in the same directory as the python file
+
+Syntax:
+
+`[TAGS_TO_REMOVE]
+patient birth date = (0x0010, 0x0030)
+tag_name (not actually used, for human understanding only) = (0xtag, 0xtag)`
 
 ## Requirements
 Pydicom
