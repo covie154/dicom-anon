@@ -16,11 +16,11 @@ tags.ini:
 - Will be created automatically if not found in the same directory as the python file
 
 Syntax:
-
-`[TAGS_TO_REMOVE]
-patient birth date = (0x0010, 0x0030)
-tag_name (not actually used, for human understanding only) = (0xtag, 0xtag)
-`
+{
+    [TAGS_TO_REMOVE]
+    patient birth date = (0x0010, 0x0030)
+    tag_name (not actually used, for human understanding only) = (0xtag, 0xtag)
+}
 
 ## Requirements
 Pydicom
