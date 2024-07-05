@@ -17,11 +17,9 @@ tags.ini:
 
 Syntax:
 ```
-{
-    [TAGS_TO_REMOVE]
-    patient birth date = (0x0010, 0x0030)
-    tag_name (not actually used, for human understanding only) = (0xtag, 0xtag)
-}
+[TAGS_TO_REMOVE]
+patient birth date = (0x0010, 0x0030)
+tag_name (not actually used, for human understanding only) = (0xtag, 0xtag)
 ```
 
 ## Requirements
