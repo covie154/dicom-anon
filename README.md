@@ -8,8 +8,8 @@ So far this is a console app, GUI version to come soon
 `python dicom_anon_console.py -i path/to/input_dicom -o (optional) path/to/dicom_anon`
 
 Parameters:
-- -i/-input: relative path to directory of DICOM files (.dcm only, DICOMDIR not supported yet)
-- -o/-output: relative path to output directory
+- `-i`/`-input`: relative path to directory of DICOM files (.dcm only, DICOMDIR not supported yet)
+- `-o`/`-output`: relative path to output directory
 
 tags.ini:
 - This is the config file of all the optional tags to be removed
