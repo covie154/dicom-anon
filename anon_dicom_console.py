@@ -2,12 +2,11 @@
 import pydicom
 import pydicom.charset
 import pydicom.config
-from pydicom import compat
 from pydicom._version import __version_info__
 from pydicom.charset import default_encoding, convert_encodings
 from pydicom.config import logger
+from pydicom.fileset import FileSet
 from pydicom.datadict import dictionary_VR
-from pydicom.datadict import (tag_for_keyword, keyword_for_tag, repeater_has_keyword)
 from pydicom.dataelem import DataElement, DataElement_from_raw, RawDataElement
 from pydicom.pixel_data_handlers.util import (convert_color_space, reshape_pixel_array)
 import pydicom.pixel_data_handlers.gdcm_handler as gdcm_handler
@@ -251,8 +250,8 @@ def anonOneDicom(dicom_str, tags_to_remove):
 
 def returnFolderAnon(dcm_file, output_path=""):
     """Given a path to a .dcm file, this fn returns the path to the anonymised file
-    e.g. C:\dcm_files\Anon.Ser1.Im1.dcm >>
-         C:\dcm_files_anon\Anon.Ser1.Im1.dcm
+    e.g. C:\\dcm_files\\Anon.Ser1.Im1.dcm >>
+         C:\\dcm_files_anon\\Anon.Ser1.Im1.dcm
 
     Args:
         dcm_file (os.path string): Input file
@@ -296,8 +295,8 @@ def processIndex(index_dict, filename):
 def anonFolder(folder, output_path="", console_mode=0):
     """Anonymise one folder, or a recursive selection of folders.
     Outputs each subfolder to subfolder_anon
-    e.g. C:\dcm_files\Anon.Ser1.Im1.dcm >>
-         C:\dcm_files_anon\Anon.Ser1.Im1.dcm
+    e.g. C:\\dcm_files\\Anon.Ser1.Im1.dcm >>
+         C:\\dcm_files_anon\\Anon.Ser1.Im1.dcm
 
     Args:
         folder (str): _description_
@@ -356,19 +355,118 @@ def anonFolder(folder, output_path="", console_mode=0):
 
 ############################################################################
 
+def anonDicomDir(dicomdir_path, output_path="", console_mode=0):
+    """Anonymise a DICOMDIR fileset and all referenced DICOM files.
+
+    Builds a new FileSet from the anonymized datasets and writes it to
+    output_path, which guarantees correct DICOMDIR internal offsets.
+
+    Args:
+        dicomdir_path (str): Path to the DICOMDIR file or directory containing it
+        output_path (str, optional): Output directory path. Defaults to "".
+        console_mode (int, optional): Console output mode. Defaults to 0.
+
+    Returns:
+        Dictionary of the keys of the anonymised files
+    """
+
+    if os.path.isdir(dicomdir_path):
+        dicomdir_file = os.path.join(dicomdir_path, 'DICOMDIR')
+        base_path = dicomdir_path
+    else:
+        dicomdir_file = dicomdir_path
+        base_path = os.path.dirname(dicomdir_path)
+
+    if not os.path.exists(dicomdir_file):
+        raise FileNotFoundError(f"DICOMDIR not found at {dicomdir_file}")
+
+    if not output_path:
+        output_path = base_path.rstrip(os.sep) + "_anon"
+
+    if console_mode:
+        print(f"Reading DICOMDIR from: {dicomdir_file}")
+
+    dicomdir_ds = pydicom.dcmread(dicomdir_file)
+    tags_to_remove = createReadConfig()
+
+    # Discover all referenced DICOM files via DirectoryRecordSequence
+    dicom_files = []
+    for record in dicomdir_ds.DirectoryRecordSequence:
+        if hasattr(record, 'ReferencedFileID'):
+            parts = record.ReferencedFileID
+            file_path = os.path.join(base_path, *(parts if isinstance(parts, list) else [parts]))
+            if os.path.exists(file_path):
+                dicom_files.append(file_path)
+
+    if console_mode:
+        print(f"Found {len(dicom_files)} DICOM files in fileset")
+
+    dict_anon_index = {}
+    anon_datasets = []
+
+    for i, dicom_file in enumerate(dicom_files):
+        if console_mode:
+            print(f"[{i+1}/{len(dicom_files)}] Anonymising: {os.path.basename(dicom_file)}", end=" ... ")
+        try:
+            result = anonOneDicom(dicom_file, tags_to_remove)
+            ds = result['dataset']
+            dict_anon_index[ds.PatientID] = result["anon_values"]
+            anon_datasets.append(ds)
+            if console_mode:
+                print("Success!")
+        except Exception as e:
+            if console_mode:
+                print(f"Error: {e}")
+
+    # Build a new FileSet and write — recalculates all DICOMDIR internal offsets
+    new_fs = FileSet()
+    for ds in anon_datasets:
+        new_fs.add(ds)
+
+    os.makedirs(output_path, exist_ok=True)
+    new_fs.write(output_path)
+
+    if console_mode:
+        print(f"Anonymized DICOMDIR written to: {output_path}")
+
+    processIndex(dict_anon_index, "anon_index.csv")
+    return dict_anon_index
+
+##################################################
+
 #%%
 # Now for the console part
 
+
+#def main():
+#    parser = argparse.ArgumentParser(add_help=True)
+#    parser.add_argument('-input', '-i', help='Path to the input directory which contains dicom files (.dcm). Does not work on DICOMDIR at present.')
+#    parser.add_argument('-output', '-o', help='(Optional) Path to the output directory (must be a valid path).')
+#    args = parser.parse_args()
+#
+#    input_dicom_path = args.input
+#    output_dicom_path = args.output
+#    
+#    anonFolder(input_dicom_path, output_dicom_path, console_mode=1)
+
+# Update main function to handle DICOMDIR
 def main():
     parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument('-input', '-i', help='Path to the input directory which contains dicom files (.dcm). Does not work on DICOMDIR at present.')
+    parser.add_argument('-input', '-i', help='Path to the input directory which contains dicom files (.dcm) or DICOMDIR.')
     parser.add_argument('-output', '-o', help='(Optional) Path to the output directory (must be a valid path).')
+    parser.add_argument('--dicomdir', action='store_true', help='Process as DICOMDIR fileset')
     args = parser.parse_args()
 
     input_dicom_path = args.input
     output_dicom_path = args.output
     
-    anonFolder(input_dicom_path, output_dicom_path, console_mode=1)
+    if args.dicomdir or (os.path.isfile(input_dicom_path) and os.path.basename(input_dicom_path) == 'DICOMDIR'):
+        # Process as DICOMDIR
+        anonDicomDir(input_dicom_path, output_dicom_path, console_mode=1)
+    else:
+        # Process as regular folder
+        anonFolder(input_dicom_path, output_dicom_path, console_mode=1)
+
 
 if __name__ == "__main__":
     main()
